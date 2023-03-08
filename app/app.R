@@ -287,6 +287,7 @@ server <- function(input, output) {
   })
 
   output$rgn_select <- renderUI({
+    req(input$choose_geography)
     if (input$choose_geography == "Local Authority") {
       regions <- unique(ctsop_la_rgn_lookup$region_name[!is.na(ctsop_la_rgn_lookup$region_name)])
       selectInput("rgn_select", "Choose region",
@@ -363,6 +364,7 @@ server <- function(input, output) {
       df <- temp.df() |>
         dplyr::filter(geography_type == "REGL")
     } else if (input$choose_geography == "Local Authority") {
+      req(input$rgn_select)
       df <- temp.df() |>
         dplyr::filter(geography_type == "LAUA",
                       region_name == input$rgn_select)
@@ -380,6 +382,7 @@ server <- function(input, output) {
   })
 
     output$plot <- renderPlot({
+      req(temp.df())
       variable <- if (input$plot_variable == "Number of properties") {
         "number_properties"
       } else if (input$plot_variable == "Share of properties") {
@@ -403,6 +406,7 @@ server <- function(input, output) {
     # here we handle revenues. We'll start by calculating band D equivalent properties for each area
 
     temp.ratios <- reactive({
+      req(input$ratioH)
       data.frame(band = LETTERS[1:nrow(ct_bands_england_1991)],
                  ratio = c(
                    input$ratioA, input$ratioB, input$ratioC, input$ratioD,
@@ -425,10 +429,12 @@ server <- function(input, output) {
     })
 
     band.d.plot.df <- reactive({
+      req(band.d.equiv.df())
       if (input$choose_geography == "Region") {
         df <- band.d.equiv.df() |>
           dplyr::filter(geography_type == "REGL")
       } else if (input$choose_geography == "Local Authority") {
+        req(input$rgn_select)
         df <- band.d.equiv.df() |>
           dplyr::filter(geography_type == "LAUA",
                         region_name == input$rgn_select)
@@ -437,6 +443,7 @@ server <- function(input, output) {
     })
 
     output$plot_by_revenue <- renderPlot({
+      req(band.d.plot.df(), temp.ratios())
       band.d.plot.df() |>
 
       ggplot(aes(x = geography_name, y = revenue, fill = model_baseline)) +
