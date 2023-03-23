@@ -8,6 +8,9 @@ ui <- navbarPage(
   id = "navbar",
   windowTitle = "Tax Devolution Tool",
 
+  div(style = "display:inline-block", uiOutput("choose_geography")),
+  div(style = "display:inline-block", uiOutput("rgn_select")),
+
   tabPanel(
     id = "Council Tax",
     title = "Council Tax",
@@ -20,7 +23,7 @@ ui <- navbarPage(
           id = "sidetab1",
           tabPanel(
             title = "Band values",
-            p("Select values for top of each band"),
+            p("Select values for top of each band (last band should be blank)"),
             uiOutput("bands"),
             uiOutput("reset_bands"),
             uiOutput("cpi_index_bands")
@@ -34,9 +37,9 @@ ui <- navbarPage(
         )
       ),
       mainPanel(width = 10,
-        div(style = "display:inline-block", uiOutput("choose_geography")),
+        # div(style = "display:inline-block", uiOutput("choose_geography")),
         div(style = "display:inline-block", uiOutput("choose_valuation")),
-        uiOutput("rgn_select"),
+        # uiOutput("rgn_select"),
         tabsetPanel(
           id = "maintab1",
           tabPanel(
@@ -46,7 +49,6 @@ ui <- navbarPage(
           ),
           tabPanel(
             title = "Analyse by revenue",
-            strong("NB: Still under development"),
             plotOutput("plot_by_revenue", height = "600")
           ),
           tabPanel(
@@ -59,29 +61,50 @@ ui <- navbarPage(
   ),
 
   tabPanel(
+    id = "Business Rates",
+    title = "Business Rates",
+
+    titlePanel("Business Rates"),
+    sidebarLayout(
+      sidebarPanel(width = 2,
+                   numericInput("nndr_sbrr", "Small business rate relief threshold",
+                                value = 12000, step = 1000),
+                   numericInput("sb_threshold", "Small business upper threshold",
+                                value = 51000, step = 1000),
+                   numericInput("sb_multiplier", "Small business multiplier",
+                                value = 0.499, step = 0.001),
+                   numericInput("lb_multiplier", "Large business multiplier",
+                                value = 0.512, step = 0.001)
+                   ),
+      mainPanel(width = 10,
+                plotOutput("nndr_plot", height = "600"))
+    )
+  ),
+
+  tabPanel(
     id = "Stamp Duty",
     title = "Stamp Duty",
 
-    titlePanel("Stamp Duty: under development (working but running slowly)"),
+    titlePanel("Stamp Duty: (recalculation of bands and rates currently very slow)"),
     sidebarLayout(
-      sidebarPanel(width = 3,
+      sidebarPanel(width = 2,
         tabsetPanel(
           id = "sdltsidetab1",
           tabPanel(
-            title = "SDLT Band values",
-            p("Select values for top of each band"),
+            title = "Band values",
+            p("Select values for top of each band (last band should be blank)"),
             uiOutput("sdlt_bands"),
             uiOutput("reset_sdlt_bands")
           ),
           tabPanel(
-            title = "SDLT Band rates",
+            title = "Band rates",
             p("Select tax rates"),
             uiOutput("sdlt_band_rates"),
             uiOutput("sdlt_reset_rates")
           )
         )
       ),
-      mainPanel(width = 9,
+      mainPanel(width = 10,
         div(style = "display:inline-block", uiOutput("choose_sdlt_geography")),
         uiOutput("sdlt_rgn_select"),
         tabsetPanel(
@@ -93,11 +116,78 @@ ui <- navbarPage(
           tabPanel(
             title = "Analyse by revenue",
             plotOutput("sdlt_plot_by_revenue", height = "600")
+          ),
+          tabPanel(
+            title = "Explore the data",
+            DT::DTOutput("sdlt_data")
           )
         )
       )
     )
 
+  ),
+
+  tabPanel(
+    id = "Workplace Parking Levy",
+    title = "Workplace Parking Levy",
+
+    titlePanel("Workplace Parking Levy"),
+    sidebarLayout(
+      sidebarPanel(width = 2,
+        numericInput("wpl_levy", "Levy per parking space (£)",
+                     value = 458, step = 10)
+      ),
+      mainPanel(width = 10,
+        plotOutput("wpl_revenue", height = "600"),
+      )
+    )
+  ),
+
+  tabPanel(
+    id = "Tourism Tax",
+    title = "Tourism Tax",
+
+    titlePanel("Tourism Tax"),
+    sidebarLayout(
+      sidebarPanel(width = 2,
+        numericInput("tt_levy", "Levy per room (£)",
+                     value = 1),
+        numericInput("tt_occupancy", "Occupancy rate (%)",
+                     value = 65)
+      ),
+      mainPanel(width = 10,
+                tabsetPanel(
+                  id = "tourism_tax_main_panel",
+                  tabPanel("Analyse by revenue",
+                           plotOutput("tt_revenue", height = "600"),
+                  ),
+                  tabPanel("Explore the data",
+                           DT::DTOutput("tourism_tax_data")
+                           )
+                )
+      )
+    )
+  ),
+
+  tabPanel(
+    id = "Employer NI retention",
+    title = "Employer NI retention",
+
+    titlePanel("Employers' NI retention"),
+    sidebarLayout(
+      sidebarPanel(width = 2),
+      mainPanel(width = 10,
+                tabsetPanel(
+                  id = "employer_ni_main_panel",
+                  tabPanel("Analyse by revenue",
+                           plotOutput("ni_revenue", height = "600"),
+                  ),
+                  tabPanel("Explore the data",
+                           DT::DTOutput("ni_data")
+                  )
+                )
+      )
+    )
   ),
 
   tabPanel(
@@ -107,7 +197,7 @@ ui <- navbarPage(
     titlePanel("Debug outputs"),
     h2("temp.df()"),
     DT::DTOutput("debug1"),
-    h2("band.d.equiv.df()"),
+    h2("nndr_plot_data()"),
     DT::DTOutput("debug2")
   )
 )
@@ -122,10 +212,16 @@ server <- function(input, output) {
   ppd_2022_ecdf <- readRDS("app.data/ppd_2022_ecdf.rds")
   ctsop_la_rgn_lookup <- readRDS("app.data/ctsop_la_rgn_lookup.rds")
   band_d_rates <- readRDS("app.data/band_d_rates.rds")
+  council_tax_base <- readRDS("app.data/council_tax_base.rds")
+  nndr_carparking <- readRDS("app.data/nndr_carparking.rds")
+  # nndr_hotels <- readRDS("app.data/nndr_hotels.rds")
+  tt_final <- readRDS("app.data/tt_final.rds")
+  nndr_data <- readRDS("app.data/nndr_data.rds")
+  ni_data <- readRDS("app.data/ni_data.rds")
 
   ct_bands_england_1991 <- data.frame(
     band  = LETTERS[1:8],
-    min   = c(0, 40001, 52001, 68001, 88001, 120001, 160001, 320001),
+    #min   = c(0, 40001, 52001, 68001, 88001, 120001, 160001, 320001),
     max   = c(40000, 52000, 68000, 88000, 120000, 160000, 320000, Inf),
     ratio = c(6/9, 7/9, 8/9,  9/9,  11/9, 13/9, 15/9, 18/9)
   ) |>
@@ -145,7 +241,7 @@ server <- function(input, output) {
     return(df)
   }
 
-  baseline <- ctsop_2022 |>
+  baseline <- council_tax_base |>
     process_ctsop() |>
     dplyr::inner_join(ct_bands_england_1991, by = c("band"))
 
@@ -189,6 +285,25 @@ server <- function(input, output) {
       updateTabsetPanel(inputId = "sidetab1",
                         selected = "Band values")
     }
+
+    if (input$navbar == "Employer NI retention") {
+      updateRadioButtons(inputId = "choose_geography",
+                         choices = c("Region", "Local Authority",
+                                     "Combined Authority"),
+                         inline = TRUE)
+    } else {
+      updateRadioButtons(inputId = "choose_geography",
+                         choices = c("Region", "Local Authority"),
+                         inline = TRUE
+      )
+    }
+
+    # TODO remove when difference over baseline available at regional level
+    if (input$maintab1 == "Analyse by difference over baseline") {
+      updateRadioButtons(inputId = "choose_geography",
+                         selected = "Local Authority",
+                         inline = TRUE)
+    }
   })
 
   output$debug1 <- DT::renderDT({
@@ -196,7 +311,7 @@ server <- function(input, output) {
   })
 
   output$debug2 <- DT::renderDT({
-    revenue_difference()
+    nndr_calc()
   })
 
   output$bands <- renderUI({
@@ -281,8 +396,9 @@ server <- function(input, output) {
   })
 
   output$choose_valuation <- renderUI({
-    radioButtons("choose_valuation", "Choose valuation",
+    radioButtons("choose_valuation", "Choose valuation year",
                  choices = c("1995", "2022"),
+                 selected = "2022",
                  inline = TRUE)
   })
 
@@ -317,13 +433,14 @@ server <- function(input, output) {
                     baseline_number_properties = n_properties)
 
 
-    areas_to_use <- names(ecdf_object)[names(ecdf_object) != "W99999999"]
+    areas_to_use <- names(ecdf_object)[grepl("E", names(ecdf_object))]
 
     # run the model and bring the data into df
     for (area in areas_to_use) {
       df_share[[area]] <- ecdf_object[[area]](temp.bands())
       df_share[[area]] <- diff(c(0, df_share[[area]])) # cumdist to dist
-      df_number[[area]] <- round(df_share[[area]] * ctsop_2022[ctsop_2022$ecode == area, ]$all_properties)
+      # df_number[[area]] <- round(df_share[[area]] * ctsop_2022[ctsop_2022$ecode == area, ]$all_properties)
+      df_number[[area]] <- round(df_share[[area]] * council_tax_base[council_tax_base$ecode == area, ]$all_properties)
     }
 
     df_share <- df_share |>
@@ -394,14 +511,12 @@ server <- function(input, output) {
         geom_col(position = "dodge") +
         facet_wrap("geography_name", labeller = ggplot2::label_wrap_gen()) +
         labs(subtitle = paste("Using", input$choose_valuation, "property values"),
+             x = "Band",
              y = input$plot_variable,
              fill = "") +
         scale_y_continuous(labels = scales::label_comma()) +
         plot.theme
     })
-
-
-
 
     # here we handle revenues. We'll start by calculating band D equivalent properties for each area
 
@@ -416,16 +531,32 @@ server <- function(input, output) {
     })
 
     band.d.equiv.df <- reactive({
-      temp.df() |>
+      band.d.equiv.la <- temp.df() |>
         # tidyr::pivot_wider(names_from = name, values_from = value) |>
         dplyr::left_join(temp.ratios(), by = c("band")) |>
         dplyr::mutate(band_d_equivalent = number_properties * ratio) |>
-        dplyr::group_by(geography_code, geography_name, region_code, region_name, geography_type, model_baseline) |>
+        # TODO insert adjusted band D equivalent data here into band_d_equivalent
+        dplyr::group_by(geography_code, geography_name,
+                        region_code, region_name,
+                        geography_type, model_baseline) |>
         dplyr::summarise(number_properties = sum(number_properties),
                          n_band_d_equivalents = sum(band_d_equivalent)) |>       # this runs band d values against band d equivs to calc revenue
       dplyr::left_join(dplyr::filter(band_d_rates, date == "2022-23"),
                        by = c("geography_code" = "ONS Code")) |>
         dplyr::mutate(revenue = n_band_d_equivalents * band_d_rate)
+
+      band.d.equiv.rgn <- band.d.equiv.la |>
+        dplyr::filter(!is.na(region_code)) |>
+        dplyr::group_by(region_code, region_name, model_baseline) |>
+        dplyr::summarise(number_properties = sum(number_properties),
+                         n_band_d_equivalents = sum(n_band_d_equivalents),
+                         revenue = sum(revenue)) |>
+        dplyr::mutate(geography_type = "REGL") |>
+        dplyr::rename(geography_code = region_code,
+                      geography_name = region_name)
+
+      band.d.equiv.final <- dplyr::bind_rows(band.d.equiv.rgn, band.d.equiv.la)
+      return(band.d.equiv.final)
     })
 
     band.d.plot.df <- reactive({
@@ -452,7 +583,8 @@ server <- function(input, output) {
         scale_y_continuous(labels = scales::label_comma()) +
         coord_flip() +
         labs(title = "Potential Council Tax Revenue by Local Authority",
-             subtitle = "NB: currently takes no account of single-occupier and other exemptions and CT Benefit provision\nTHIS ANALYSIS NOT YET AVAILABLE AT REGION LEVEL",
+             subtitle = "Does not deduct exemptions, e.g. student relief",
+             x = input$choose_geography,
              y = "Revenue (£)",
              fill = ""
              ) +
@@ -479,10 +611,12 @@ server <- function(input, output) {
         geom_col() +
         scale_y_continuous(labels = scales::label_comma()) +
         coord_flip() +
+        labs(title = "Difference of modelled revenue over baseline revenue",
+             subtitle = "NB: not currently available at regional level",
+             x = input$choose_geography,
+             y = "Modelled revenue difference over baseline (£)") +
         plot.theme
     })
-
-
 
 # SDLT --------------------------------------------------------------------
 
@@ -529,29 +663,232 @@ server <- function(input, output) {
       req(temp.sdlt.bands(), temp.sdlt.rates())
       if (identical(temp.sdlt.bands(), sdlt_rates_df$band) &
           identical(temp.sdlt.rates(), sdlt_rates_df$rate)) {
-        ppd_2022 |>
-          dplyr::group_by(rgn) |>
+        ppd_la <- ppd_2022 |>
+          dplyr::filter(grepl("E", oslaua)) |>
+          dplyr::inner_join(ctsop_la_rgn_lookup,
+                            by = c("oslaua" = "geography_code")) |>
+          dplyr::rename(geography_code = oslaua) |>
+          dplyr::mutate(geography_type = "LAUA") |>
+          dplyr::group_by(geography_type, geography_code, geography_name,
+                          region_code, region_name) |>
           dplyr::summarise(sdlt = sum(sdlt))
+
+        ppd_rgn <- ppd_la |>
+          dplyr::group_by(region_code, region_name) |>
+          dplyr::summarise(sdlt = sum(sdlt)) |>
+          dplyr::mutate(geography_type = "REGL") |>
+          dplyr::rename(geography_code = region_code,
+                        geography_name = region_name)
+
+        ppd_final <- dplyr::bind_rows(ppd_rgn, ppd_la)
+        return(ppd_final)
       } else {
-        ppd_2022 |>
+        ppd_la <- ppd_2022 |>
+          dplyr::filter(grepl("E", oslaua)) |>
           dplyr::mutate(sdlt = sapply(Price, calc_sdlt_payable)) |>
-          dplyr::group_by(rgn) |>
+          dplyr::inner_join(ctsop_la_rgn_lookup,
+                            by = c("oslaua" = "geography_code")) |>
+          dplyr::rename(geography_code = oslaua) |>
+          dplyr::mutate(geography_type = "LAUA") |>
+          dplyr::group_by(geography_type, geography_code, geography_name,
+                          region_code, region_name) |>
           dplyr::summarise(sdlt = sum(sdlt))
+
+        ppd_rgn <- ppd_la |>
+          dplyr::group_by(region_code, region_name) |>
+          dplyr::summarise(sdlt = sum(sdlt)) |>
+          dplyr::mutate(geography_type = "REGL") |>
+          dplyr::rename(geography_code = region_code,
+                        geography_name = region_name)
+
+        ppd_final <- dplyr::bind_rows(ppd_rgn, ppd_la)
+        return(ppd_final)
       }
     })
 
+    sdlt_df_plot <- reactive({
+      if (input$choose_geography == "Region") {
+        df <- sdlt_df() |>
+          dplyr::filter(geography_type == "REGL")
+      } else if (input$choose_geography == "Local Authority") {
+        req(input$rgn_select)
+        df <- sdlt_df() |>
+          dplyr::filter(geography_type == "LAUA",
+                        region_name == input$rgn_select)
+      }
+      return(df)
+    })
+
     output$sdlt_plot_by_revenue <- renderPlot({
-      sdlt_df() |>
-        ggplot(aes(x = rgn, y = sdlt)) +
+      sdlt_df_plot() |>
+        ggplot(aes(x = geography_name, y = sdlt)) +
         geom_col() +
         coord_flip() +
         scale_y_continuous(labels = scales::label_comma()) +
         plot.theme +
         labs(title = "Residential Stamp Duty Land Tax Receipts",
-             subtitle = "Based on 2022 Land Registry Price Paid Data")
+             subtitle = "NB: this does not include commercial SDLT receipts",
+             caption = "Based on 2022 Land Registry Price Paid Data",
+             x = input$choose_geography,
+             y = "Revenue (£)")
+    })
+
+    output$sdlt_data <- DT::renderDT({
+      sdlt_df_plot()
+    })
+
+# Workplace Parking Levy --------------------------------------------------
+
+    wpl_calc <- reactive({
+      if (input$choose_geography == "Region") {
+        df <- nndr_carparking |>
+          dplyr::filter(geography_type == "REGL")
+      } else if (input$choose_geography == "Local Authority") {
+        req(input$rgn_select)
+        df <- nndr_carparking |>
+          dplyr::filter(geography_type == "LAUA",
+                        region_name == input$rgn_select)
+      }
+
+      df <- df |>
+        dplyr::mutate(total_revenue = total_spaces * input$wpl_levy)
+      return(df)
+    })
+
+    output$wpl_revenue <- renderPlot({
+      ggplot(wpl_calc(), aes(x = geography_name, y = total_revenue)) +
+        geom_col(position = "dodge") +
+        coord_flip() +
+        scale_y_continuous(labels = scales::label_comma()) +
+        plot.theme +
+        labs(title = "Annual Workplace Parking Levy revenue",
+             subtitle = "Excludes premises with fewer than 10 spaces, but includes other possible exemptions, e.g. disabled spaces, etc.",
+             x = input$choose_geography,
+             y = "Revenue (£)")
     })
 
 
+    # Tourism Tax -------------------------------------------------------------
+    tt_calc <- reactive({
+
+      if (input$choose_geography == "Region") {
+        df <- tt_final |>
+          dplyr::filter(geography_type == "REGL")
+      } else if (input$choose_geography == "Local Authority") {
+        req(input$rgn_select)
+        df <- tt_final |>
+          dplyr::filter(geography_type == "LAUA",
+                        region_name == input$rgn_select)
+      }
+
+      df <- df |>
+        mutate(revenue = n_rooms * 365 * input$tt_levy * (input$tt_occupancy / 100))
+    })
+
+    output$tt_revenue <- renderPlot({
+      ggplot(tt_calc(), aes(x = geography_name, y = revenue)) +
+        geom_col(position = "dodge") +
+        coord_flip() +
+        scale_y_continuous(labels = scales::label_comma()) +
+        plot.theme +
+        labs(title = "Annual tourist tax revenue",
+             subtitle = "Includes hotels and similar establishments, holiday dwellings, tourist campsites and other collective accommodation",
+             caption = "Source: Visit England Accommodation Stock Audit 2016",
+             x = input$choose_geography,
+             y = "Revenue (£)")
+    })
+
+    output$tourism_tax_data <- DT::renderDT({
+      tt_calc()
+    })
+
+
+# NNDR Business Rates -----------------------------------------------------
+
+    nndr_calc <- reactive({
+      nndr_la <- nndr_data |>
+        dplyr::mutate(nndr_payable =
+                        dplyr::case_when(
+          `Rateable Value` <= input$nndr_sbrr ~ 0,
+          `Rateable Value` > input$nndr_sbrr & `Rateable Value` < input$sb_threshold ~ `Rateable Value` * input$sb_multiplier,
+          `Rateable Value` >= input$sb_threshold ~ `Rateable Value` * input$lb_multiplier
+        )) |>
+        dplyr::inner_join(ctsop_la_rgn_lookup,
+                          by = c("oslaua" = "geography_code")) |>
+        dplyr::group_by(geography_code = oslaua, geography_name, geography_type,
+                        region_code, region_name) |>
+        dplyr::summarise(nndr_payable = sum(nndr_payable))
+
+      nndr_rgn <- nndr_la |>
+        dplyr::group_by(region_code, region_name) |>
+        dplyr::summarise(nndr_payable = sum(nndr_payable)) |>
+        dplyr::mutate(geography_type = "REGL") |>
+        dplyr::rename(geography_code = region_code,
+                      geography_name = region_name)
+
+      nndr_final <- dplyr::bind_rows(nndr_rgn, nndr_la)
+      return(nndr_final)
+    })
+
+    nndr_plot_data <- reactive({
+      if (input$choose_geography == "Region") {
+        df <- nndr_calc() |>
+          dplyr::filter(geography_type == "REGL")
+      } else if (input$choose_geography == "Local Authority") {
+        req(input$rgn_select)
+        df <- nndr_calc() |>
+          dplyr::filter(geography_type == "LAUA",
+                        region_name == input$rgn_select)
+      }
+      return(df)
+    })
+
+    output$nndr_plot <- renderPlot({
+      ggplot(nndr_plot_data(), aes(x = geography_name, y = nndr_payable)) +
+        geom_col(position = "dodge") +
+        coord_flip() +
+        scale_y_continuous(labels = scales::label_comma()) +
+        plot.theme +
+        labs(title = "Business Rates revenue",
+             subtitle = "Includes SBRR but not transitional adjustments, empty property rate, \nmandatory and discretionary reliefs and accounting adjustments",
+             x = input$choose_geography,
+             y = "Revenue (£)")
+    })
+
+# Employer NI retention ---------------------------------------------------
+
+    ni_plot_data <- reactive({
+      if (input$choose_geography == "Region") {
+        df <- ni_data |>
+          dplyr::filter(geography_type == "REGL")
+      } else if (input$choose_geography == "Local Authority") {
+        req(input$rgn_select)
+        df <- ni_data |>
+          dplyr::filter(geography_type == "LAUA",
+                        region_name == input$rgn_select)
+      } else if (input$choose_geography == "Combined Authority") {
+        df <- ni_data |>
+          dplyr::filter(geography_type == "CA")
+      }
+      return(df)
+    })
+
+    output$ni_revenue <- renderPlot({
+      ggplot(ni_plot_data(), aes(x = geography_name, y = ni_paid)) +
+        geom_col(position = "dodge") +
+        coord_flip() +
+        scale_y_continuous(labels = scales::label_comma()) +
+        plot.theme +
+        labs(title = "Employers' NI retention",
+             subtitle = "Assumes 1pp of Employers' NI is retained\nNB: data not available for all individual LAs, but is included in their regional totals",
+             caption = "Source: ASHE pay data, OI modelled calculations",
+             x = input$choose_geography,
+             y = "Revenue")
+    })
+
+    output$ni_data <- DT::renderDT({
+      ni_plot_data()
+    })
 
 }
 
