@@ -7,9 +7,10 @@ ui <- navbarPage(
   title = "Tax Devolution Tool",
   id = "navbar",
   windowTitle = "Tax Devolution Tool",
-
-  div(style = "display:inline-block", uiOutput("choose_geography")),
-  div(style = "display:inline-block", uiOutput("rgn_select")),
+  header = list(
+    div(style = "display:inline-block; margin-left: 20px", uiOutput("choose_geography")),
+    div(style = "display:inline-block", uiOutput("rgn_select"))
+  ),
 
   tabPanel(
     id = "Council Tax",
