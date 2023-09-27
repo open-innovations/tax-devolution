@@ -79,11 +79,21 @@ ct_bands_england_1991 <- data.frame(
   ratio = c(6/9, 7/9, 8/9,  9/9,  11/9, 13/9, 15/9, 18/9)
 ) # |> dplyr::mutate(cpi_2022 = max * cpi$index_1991[cpi$dates.date == "2022-01-01"])
 
-ct_bands_england_npp <- data.frame(
+ct_bands_england_npp_superbands <- data.frame(
   band  = c("X", "Y", "Z"),
   min   = c(2e6 + 1, 10e6 + 1, 20e6 + 1),
   max   = c(10e6, 20e6, Inf),
   ratio = c(8, 16, 32)
+)
+
+ct_bands_england_1991_npp <- data.frame(
+  band  = c(LETTERS[1:8], LETTERS[24:26]),
+  min   = c(0, 40001, 52001, 68001, 88001, 120001, 160001, 320001,
+            2e6 + 1, 10e6 + 1, 20e6 + 1),
+  max   = c(40000, 52000, 68000, 88000, 120000, 160000, 320000,
+            10e6, 20e6, Inf),
+  ratio = c(6/9, 7/9, 8/9,  9/9,  11/9, 13/9, 15/9, 18/9,
+            8, 16, 32)
 )
 
 ct_bands_wales_2003 <- data.frame(
@@ -190,7 +200,8 @@ summary(proportion_sold_la$prop_sold)
 ecdf(ppd_england_2022$price)(c(2e6, 10e6, 20e6)) |>
   setNames(c("X", "Y", "Z"))
 
-# calculate bands for all England LAs based on 2022 prices
+# calculate new A-H bands for all England LAs based on 2022 prices
+# keeping proportion of properties in each band the same
 new_bands <- list()
 for (la in unique(ctsop_2023_laua$ecode)) {
   la_name <- unique(ctsop_2023_laua$area_name[ctsop_2023_laua$ecode == la])
@@ -199,6 +210,23 @@ for (la in unique(ctsop_2023_laua$ecode)) {
 }
 
 new_bands_df <- as.data.frame(do.call(rbind, new_bands))
+
+# need to calculate a cumprop value for each LA which takes into account
+# a revised band H and the new NPP bands X, Y, Z
+
+# the new max value for band H is going to be the value which the
+# new £2m band X kicks in. We'll need to calculate the percentile for this
+# for each local authority
+
+# The national level for this will be
+eng_superbands_ptiles <- ecdf(ppd_england_2022$price)(c(2e6, 10e6, 20e6))
+# [1] 0.9895456 0.9989964 0.9995767
+# These numbers should replace the max values for bands H, X and Y
+# (Band Z max value will always be Inf)
+
+# We can only add superbands to the original 1991 bands. If we revalue them
+# to modern valuations, then Band X kicks in too low in many places
+
 
 
 england_bands <- quantile(ppd_england_2022$price, ctsop_2023_england$cumprop) |> setNames(LETTERS[1:8])
