@@ -1,42 +1,67 @@
-library(ggplot2)
+# council-tax
 
-# Data import -------------------------------------------------------------
+# data import -------------------------------------------------------------
 
-# hpssa12 <- readxl::read_excel("data-raw/Council Tax/hpssadataset12meanpricepaidforadministrativegeographies.xlsx", sheet = "2a", skip = 6) |>
-#   dplyr::select(-(...112:...113)) |>
-#   tidyr::pivot_longer(cols = tidyselect:::where(is.numeric), names_to = "date") |>
-#   dplyr::mutate(date = substr(date, 13, 20))
-#
-# ppd <- readr::read_csv("data-raw/Council Tax/pp-complete.csv",
-#                       col_names = c("Transaction unique identifier",
-#                                     "Price",
-#                                     "Date of Transfer",
-#                                     "Postcode",
-#                                     "Property Type",
-#                                     "Old/New",
-#                                     "Duration",
-#                                     "PAON",
-#                                     "SAON",
-#                                     "Street",
-#                                     "Locality",
-#                                     "Town/City",
-#                                     "District",
-#                                     "County",
-#                                     "PPD Category Type",
-#                                     "Record Status")) |>
-#   dplyr::select(Price, `Date of Transfer`, `Postcode`)
-#
-# onspd <- readr::read_csv("~/Data/Geodata/ONSPD/ONSPD_NOV_2022_UK/Data/ONSPD_NOV_2022_UK.csv", col_select = c(pcds, oslaua, rgn, lep1))
-#
-# ppd <- dplyr::inner_join(ppd, onspd, by = c("Postcode" = "pcds")) |>
-#   dplyr::select(-Postcode)
-#
-# rm(onspd)
+import_ppd <- function(update = FALSE, url = NULL, path = NULL) {
+  ppd_url <- "http://prod.publicdata.landregistry.gov.uk.s3-website-eu-west-1.amazonaws.com/pp-complete.csv"
+  ppd_path <- "~/Data/Land Registry/pp-complete.csv"
+  if (update) {
+    download.file(url = ppd_url,
+                  destfile = ppd_path,
+                  mode = "wb")
+  } else {
+    ppd_source <- "~/Data/Land Registry/ppd-complete.csv"
+  }
 
-# write a serialised version of ppd for faster loading
-# saveRDS(ppd, "data/ppd.rds")
+  ppd_cols <- c("id",
+                "price",
+                "date",
+                "postcode",
+                "property_type",
+                "old_new",
+                "duration",
+                "paon",
+                "saon",
+                "street",
+                "locality",
+                "town_city",
+                "district",
+                "county",
+                "ppd_category_type",
+                "record_status"
+  )
 
-ppd <- readRDS("data/ppd.rds")
+  ppd <- readr::read_csv(ppd_path,
+                         col_names = ppd_cols,
+                         col_select = c(date, postcode, price)
+  )
+
+  return(ppd)
+}
+
+import_onspd <- function(update = FALSE) {
+  if (update) {
+    stop("Automatic updating not yet enabled.")
+  }
+
+  onspd <- readr::read_csv("~/Data/Geodata/ONSPD/ONSPD_FEB_2023_UK/Data/ONSPD_FEB_2023_UK.csv", col_select = c(pcds, oslaua, rgn))
+
+  return(onspd)
+}
+
+# ppd <- import_ppd()
+# onspd <- import_onspd()
+
+# ppd_onspd <- dplyr::inner_join(ppd, onspd, by = c("postcode" = "pcds")) |>
+  # dplyr::select(-postcode)
+# rm(ppd, onspd)
+
+# saveRDS(ppd_onspd, "data/ppd_onspd.rds")
+
+
+# TODO import CTSOP, CTB and CTR here
+
+# global variables --------------------------------------------------------
 
 cpi <- readr::read_csv("data-raw/CPI Index Annual.csv") |>
   dplyr::mutate(index_1991 = value / value[dates.date == "1991-01-01"]) |>
@@ -46,15 +71,12 @@ cpi <- readr::read_csv("data-raw/CPI Index Annual.csv") |>
 
 # saveRDS(cpi, "app/app.data/cpi.rds")
 
-# Analysis ----------------------------------------------------------------
-
 ct_bands_england_1991 <- data.frame(
   band  = LETTERS[1:8],
   min   = c(0, 40001, 52001, 68001, 88001, 120001, 160001, 320001),
   max   = c(40000, 52000, 68000, 88000, 120000, 160000, 320000, Inf),
   ratio = c(6/9, 7/9, 8/9,  9/9,  11/9, 13/9, 15/9, 18/9)
-) |>
-  dplyr::mutate(cpi_2022 = max * cpi$index_1991[cpi$dates.date == "2022-01-01"])
+) # |> dplyr::mutate(cpi_2022 = max * cpi$index_1991[cpi$dates.date == "2022-01-01"])
 
 ct_bands_wales_2003 <- data.frame(
   band  = LETTERS[1:9],
@@ -70,13 +92,158 @@ ct_bands_scotland_1991 <- data.frame(
   ratio = c(6/9, 7/9, 8/9, 9/9, 131/100, 163/100, 49/25, 49/20)
 )
 
+ppd_onspd <- readRDS("data/ppd_onspd.rds")
+
+ppd_england_2022 <- ppd_onspd |>
+  dplyr::filter(date >= "2022-01-01",
+                date <= "2022-12-31",
+                substr(oslaua, 1, 1) == "E")
+
+# verify number of local authorities
+ppd_england_2022$oslaua |> unique() |> length()
+# 309
+
+# .. = not valid (i.e band I in Wales)
+# - = no properties in this band - should be 0
+
+process_ctsop <- function(x) {
+  df <- x |>
+    dplyr::select(-all_properties) |>
+    tidyr::pivot_longer(cols = band_a:band_i,
+                        names_to = "band",
+                        values_to = "n_properties",
+                        values_drop_na = TRUE
+                        ) |>
+    dplyr::mutate(n_properties = ifelse(n_properties == "-",
+                                        0,
+                                        n_properties)) |>
+    dplyr::mutate(band = toupper(substr(band, 6, 6))) |>
+    dplyr::mutate(n_properties = as.numeric(n_properties)) |>
+    dplyr::group_by(area_name) |>
+    dplyr::mutate(proportion = n_properties / sum(n_properties)) |>
+    dplyr::mutate(cumprop = cumsum(proportion))
+  return(df)
+}
+
+# Analysis ----------------------------------------------------------------
+
+# ctsop_2022 <- readr::read_csv('data-raw/Council Tax/CTSOP1-0-1993-2022/CTSOP1_0_2022_03_31.csv', na = c("..", "-")) |>
+#   dplyr::mutate(band_i = as.numeric(band_i)) |>
+#   process_ctsop()
+
+ctsop_2023 <- readr::read_csv('~/Data/VOA/CTSOP/CTSOP1_0_1993_2023/CTSOP1_0_2023_03_31.csv', na = c(".."), col_types = readr::cols(.default = readr::col_character())) |>
+  # dplyr::mutate(band_i = as.numeric(band_i)) |>
+  process_ctsop()
+
+ctsop_2023_england <- ctsop_2023 |>
+  dplyr::filter(area_name == "ENGLAND")
+
+ctsop_2023_laua <- ctsop_2023 |>
+  dplyr::filter(ecode %in% ppd_england_2022$oslaua)
+
+# verify number of local authorities
+ctsop_2023_laua$ecode |> unique() |> length()
+# 309
+
+# england-wide property bands at 2022 prices
+quantile(ppd_england_2022$price, probs = ctsop_2023_england$cumprop)
+
+# test difference in methodologies
+test <- list()
+for (type in 1:9) {
+  test[[type]] <- quantile(ppd_england_2022$price,
+                           probs = ctsop_2023_england$cumprop,
+                           type = type)
+}
+
+# how many sold in each la?
+n_transactions <- ppd_england_2022 |>
+  dplyr::group_by(oslaua) |>
+  dplyr::summarise(n = dplyr::n())
+
+range(n_transactions$n)
+hist(n_transactions$n)
+
+# how many properties in each la?
+n_properties <- ctsop_2023_laua |>
+  dplyr::group_by(ecode) |>
+  dplyr::summarise(n = sum(n_properties))
+
+hist(n_properties$n)
+
+# proportion sold in each la in 2022
+proportion_sold_la <- dplyr::left_join(n_properties, n_transactions,
+                                       by = c("ecode" = "oslaua")) |>
+  dplyr::mutate(prop_sold = n.y/n.x)
+
+hist(proportion_sold_la$prop_sold)
+summary(proportion_sold_la$prop_sold)
+
+# proportion of properties in the new super bands
+ecdf(ppd_england_2022$price)(c(2e6, 10e6, 20e6)) |>
+  setNames(c("X", "Y", "Z"))
+
+# calculate bands for all England LAs based on 2022 prices
+
+new_bands <- list()
+for (la in unique(ctsop_2023_laua$ecode)) {
+  la_name <- unique(ctsop_2023_laua$area_name[ctsop_2023_laua$ecode == la])
+  new_bands[[la_name]] <- quantile(ppd_england_2022$price[ppd_england_2022$oslaua == la], ctsop_2023_laua$cumprop[ctsop_2023_laua$ecode == la]) |>
+    setNames(LETTERS[1:8])
+}
+
+new_bands_df <- as.data.frame(do.call(rbind, new_bands))
+
+
+england_bands <- quantile(ppd_england_2022$price, ctsop_2023_england$cumprop) |> setNames(LETTERS[1:8])
+
+new_national_bands_cumsum <- list()
+for (la in unique(ctsop_2023_laua$ecode)) {
+  la_name <- unique(ctsop_2023_laua$area_name[ctsop_2023_laua$ecode == la])
+  new_national_bands_cumsum[[la_name]] <- ecdf(ppd_england_2022$price[ppd_england_2022$oslaua == la])(england_bands) |>
+    setNames(LETTERS[1:8])
+}
+
+new_national_bands_df <- as.data.frame(do.call(rbind, new_national_bands_cumsum))
+new_national_bands_df$area_name <- row.names(new_national_bands_df)
+new_national_bands_df1 <- new_national_bands_df |>
+  tidyr::pivot_longer(-area_name, names_to = "band", values_to = "cumsum") |>
+  dplyr::group_by(area_name) |>
+  dplyr::mutate(proportion = diff(c(0, cumsum))) |>
+  dplyr::mutate(n_properties = sum(ctsop_2023_laua$n_properties[ctsop_2023_laua$area_name == area_name]) * proportion) |>
+  dplyr::mutate(new_band_d_equivalents = n_properties * ct_bands_england_1991$ratio[ct_bands_england_1991$band == band]) |>
+  dplyr::summarise(new_band_d_equivalents = sum(new_band_d_equivalents))
+
+current_national_bands_df <- ctsop_2023_laua |>
+  dplyr::mutate(current_band_d_equivalents = n_properties * ct_bands_england_1991$ratio[ct_bands_england_1991$band == band]) |>
+  dplyr::summarise(current_band_d_equivalents = sum(current_band_d_equivalents))
+
+# combine band_d equivalents
+
+compare_band_d_equivalents <- dplyr::inner_join(new_national_bands_df1,
+                                                current_national_bands_df) |>
+  dplyr::mutate(difference = (new_band_d_equivalents - current_band_d_equivalents)/ current_band_d_equivalents)
+
+# readr::write_csv(compare_band_d_equivalents, 'data/compare_band_d_equivalents.csv')
+
+# TODO replicate for proportion of properties in each band at system inception
+
+
+
+
+# old stuff ---------------------------------------------------------------
+
+
+
+
+
 # distribution of prices in the first year UK-wide
 ppd_1995 <- ppd |>
   dplyr::filter(`Date of Transfer` >= "1995-01-01",
                 `Date of Transfer` <= "1995-12-31")
 
 # 1995 ppd distribution by decile
-quantile(ppd_1995$Price, probs = seq(0, 1, 0.1))
+quantile(ppd$price[substr(ppd$date, 1, 4) == "1995"], probs = seq(0, 1, 0.1))
 
 # Get distribution of properties by band at inception
 
@@ -85,19 +252,6 @@ ctsop_1993 <- readr::read_csv('data-raw/Council Tax/CTSOP1-0-1993-2022/CTSOP1_0_
 
 # saveRDS(ctsop_1993, "app/app.data/ctsop_1993.rds")
 
-process_ctsop <- function(x) {
-  df <- x |>
-    dplyr::select(-all_properties) |>
-    tidyr::pivot_longer(cols = band_a:band_i,
-                        names_to = "band",
-                        values_to = "n_properties",
-                        values_drop_na = TRUE) |>
-    dplyr::mutate(band = toupper(substr(band, 6, 6))) |>
-    dplyr::group_by(area_name) |>
-    dplyr::mutate(proportion = n_properties / sum(n_properties)) |>
-    dplyr::mutate(cumprop = cumsum(proportion))
-  return(df)
-}
 
 # distribution of England properties by band in 1993
 
@@ -119,9 +273,11 @@ ggplot(ctsop_1993_rgn, aes(x = band, y = proportion)) +
   facet_wrap("area_name", labeller = ggplot2::label_wrap_gen(20)) +
   labs(title = "Distribution of properties by Council Tax band, 1993")
 
+# 2022 analysis - first format to long
 
-ctsop_2022 <- readr::read_csv('data-raw/Council Tax/CTSOP1-0-1993-2022/CTSOP1_0_2022_03_31.csv', na = c("..", "-")) |>
-  dplyr::mutate(band_i = as.numeric(band_i))
+
+
+
 
 ctsop_2022_england <- ctsop_2022 |>
   dplyr::filter(area_name == "ENGLAND") |>
