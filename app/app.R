@@ -86,24 +86,29 @@ ui <- navbarPage(
     id = "Stamp Duty",
     title = "Stamp Duty",
 
-    titlePanel("Stamp Duty: (recalculation of bands and rates currently very slow)"),
+    titlePanel("Stamp Duty"),
     sidebarLayout(
       sidebarPanel(width = 2,
-        tabsetPanel(
+        #tabsetPanel(
           id = "sdltsidetab1",
-          tabPanel(
-            title = "Band values",
-            p("Select values for top of each band (last band should be blank)"),
-            uiOutput("sdlt_bands"),
-            uiOutput("reset_sdlt_bands")
-          ),
-          tabPanel(
-            title = "Band rates",
-            p("Select tax rates"),
-            uiOutput("sdlt_band_rates"),
-            uiOutput("sdlt_reset_rates")
-          )
-        )
+          p("Using current (September 2022) rates:"),
+          p("<£250,000 - 0%"),
+          p("£250,001-£925,000 - 5%"),
+          p("£925,001-£1,500,000 - 10%"),
+          p(">£1,500,000 - 15%"),
+          # tabPanel(
+          #   title = "Band values",
+          #   p("Select values for top of each band (last band should be blank)"),
+          #   uiOutput("sdlt_bands"),
+          #   uiOutput("reset_sdlt_bands")
+          # ),
+          # tabPanel(
+          #   title = "Band rates",
+          #   p("Select tax rates"),
+          #   uiOutput("sdlt_band_rates"),
+          #   uiOutput("sdlt_reset_rates")
+          # )
+      #  )
       ),
       mainPanel(width = 10,
         div(style = "display:inline-block", uiOutput("choose_sdlt_geography")),
@@ -660,60 +665,62 @@ server <- function(input, output) {
       return(tax)
     }
 
-    sdlt_df <- reactive({
-      req(temp.sdlt.bands(), temp.sdlt.rates())
-      if (identical(temp.sdlt.bands(), sdlt_rates_df$band) &
-          identical(temp.sdlt.rates(), sdlt_rates_df$rate)) {
-        ppd_la <- ppd_2022 |>
-          dplyr::filter(grepl("E", oslaua)) |>
-          dplyr::inner_join(ctsop_la_rgn_lookup,
-                            by = c("oslaua" = "geography_code")) |>
-          dplyr::rename(geography_code = oslaua) |>
-          dplyr::mutate(geography_type = "LAUA") |>
-          dplyr::group_by(geography_type, geography_code, geography_name,
-                          region_code, region_name) |>
-          dplyr::summarise(sdlt = sum(sdlt))
+    # sdlt_df <- reactive({
+    #   req(temp.sdlt.bands(), temp.sdlt.rates())
+    #   if (identical(temp.sdlt.bands(), sdlt_rates_df$band) &
+    #       identical(temp.sdlt.rates(), sdlt_rates_df$rate)) {
+    #     ppd_la <- ppd_2022 |>
+    #       dplyr::filter(grepl("E", oslaua)) |>
+    #       dplyr::inner_join(ctsop_la_rgn_lookup,
+    #                         by = c("oslaua" = "geography_code")) |>
+    #       dplyr::rename(geography_code = oslaua) |>
+    #       dplyr::mutate(geography_type = "LAUA") |>
+    #       dplyr::group_by(geography_type, geography_code, geography_name,
+    #                       region_code, region_name) |>
+    #       dplyr::summarise(sdlt = sum(sdlt))
+    #
+    #     ppd_rgn <- ppd_la |>
+    #       dplyr::group_by(region_code, region_name) |>
+    #       dplyr::summarise(sdlt = sum(sdlt)) |>
+    #       dplyr::mutate(geography_type = "REGL") |>
+    #       dplyr::rename(geography_code = region_code,
+    #                     geography_name = region_name)
+    #
+    #     ppd_final <- dplyr::bind_rows(ppd_rgn, ppd_la)
+    #     return(ppd_final)
+    #   } else {
+    #     ppd_la <- ppd_2022 |>
+    #       dplyr::filter(grepl("E", oslaua)) |>
+    #       dplyr::mutate(sdlt = sapply(Price, calc_sdlt_payable)) |>
+    #       dplyr::inner_join(ctsop_la_rgn_lookup,
+    #                         by = c("oslaua" = "geography_code")) |>
+    #       dplyr::rename(geography_code = oslaua) |>
+    #       dplyr::mutate(geography_type = "LAUA") |>
+    #       dplyr::group_by(geography_type, geography_code, geography_name,
+    #                       region_code, region_name) |>
+    #       dplyr::summarise(sdlt = sum(sdlt))
+    #
+    #     ppd_rgn <- ppd_la |>
+    #       dplyr::group_by(region_code, region_name) |>
+    #       dplyr::summarise(sdlt = sum(sdlt)) |>
+    #       dplyr::mutate(geography_type = "REGL") |>
+    #       dplyr::rename(geography_code = region_code,
+    #                     geography_name = region_name)
+    #
+    #     ppd_final <- dplyr::bind_rows(ppd_rgn, ppd_la)
+    #     return(ppd_final)
+    #   }
+    # })
 
-        ppd_rgn <- ppd_la |>
-          dplyr::group_by(region_code, region_name) |>
-          dplyr::summarise(sdlt = sum(sdlt)) |>
-          dplyr::mutate(geography_type = "REGL") |>
-          dplyr::rename(geography_code = region_code,
-                        geography_name = region_name)
-
-        ppd_final <- dplyr::bind_rows(ppd_rgn, ppd_la)
-        return(ppd_final)
-      } else {
-        ppd_la <- ppd_2022 |>
-          dplyr::filter(grepl("E", oslaua)) |>
-          dplyr::mutate(sdlt = sapply(Price, calc_sdlt_payable)) |>
-          dplyr::inner_join(ctsop_la_rgn_lookup,
-                            by = c("oslaua" = "geography_code")) |>
-          dplyr::rename(geography_code = oslaua) |>
-          dplyr::mutate(geography_type = "LAUA") |>
-          dplyr::group_by(geography_type, geography_code, geography_name,
-                          region_code, region_name) |>
-          dplyr::summarise(sdlt = sum(sdlt))
-
-        ppd_rgn <- ppd_la |>
-          dplyr::group_by(region_code, region_name) |>
-          dplyr::summarise(sdlt = sum(sdlt)) |>
-          dplyr::mutate(geography_type = "REGL") |>
-          dplyr::rename(geography_code = region_code,
-                        geography_name = region_name)
-
-        ppd_final <- dplyr::bind_rows(ppd_rgn, ppd_la)
-        return(ppd_final)
-      }
-    })
+    sdlt_df <- readRDS("app.data/sdlt.rds")
 
     sdlt_df_plot <- reactive({
       if (input$choose_geography == "Region") {
-        df <- sdlt_df() |>
+        df <- sdlt_df |>
           dplyr::filter(geography_type == "REGL")
       } else if (input$choose_geography == "Local Authority") {
         req(input$rgn_select)
-        df <- sdlt_df() |>
+        df <- sdlt_df |>
           dplyr::filter(geography_type == "LAUA",
                         region_name == input$rgn_select)
       }
@@ -729,7 +736,7 @@ server <- function(input, output) {
         plot.theme +
         labs(title = "Residential Stamp Duty Land Tax Receipts",
              subtitle = "NB: this does not include commercial SDLT receipts",
-             caption = "Based on 2022 Land Registry Price Paid Data",
+             caption = "Based on 2022 Land Registry Price Paid Data\nand stamp duty thresholds and rates from 23 September 2022\nDoes not account for first time buyer reliefs or second home/ATED surcharges",
              x = input$choose_geography,
              y = "Revenue (£)")
     })

@@ -227,6 +227,18 @@ eng_superbands_ptiles <- ecdf(ppd_england_2022$price)(c(2e6, 10e6, 20e6))
 # We can only add superbands to the original 1991 bands. If we revalue them
 # to modern valuations, then Band X kicks in too low in many places
 
+# We don't have prices for 1991, so we use 1995 instead
+
+ppd_england_1995 <- ppd_onspd |>
+  dplyr::filter(date >= "1995-01-01",
+                date <= "1995-12-31") |>
+  dplyr::filter(substr(oslaua, 1, 1) == "E")
+
+
+ecdf(ppd_england_1995$price)(ct_bands_england_1991_npp$max)
+ecdf(ppd_england_2022$price)(ct_bands_england_1991_npp$max)
+ecdf(ppd_england_2022$price)(ct_bands_england_1991$max)
+
 
 
 england_bands <- quantile(ppd_england_2022$price, ctsop_2023_england$cumprop) |> setNames(LETTERS[1:8])
@@ -271,11 +283,8 @@ compare_band_d_equivalents <- dplyr::inner_join(new_national_bands_df1,
 
 
 
-# distribution of prices in the first year UK-wide
-ppd_1995 <- ppd |>
-  dplyr::filter(`Date of Transfer` >= "1995-01-01",
-                `Date of Transfer` <= "1995-12-31")
 
+# distribution of prices in the first year UK-wide
 # 1995 ppd distribution by decile
 quantile(ppd$price[substr(ppd$date, 1, 4) == "1995"], probs = seq(0, 1, 0.1))
 
@@ -293,19 +302,19 @@ ctsop_1993_eng <- ctsop_1993 |>
   dplyr::filter(area_name == "ENGLAND") |>
   process_ctsop()
 
-ggplot(ctsop_1993_eng, aes(x = band, y = proportion)) +
-  geom_col() +
-  labs(title = "Distribution of properties by CT band (England, 1993)")
+ggplot2::ggplot(ctsop_1993_eng, ggplot2::aes(x = band, y = proportion)) +
+  ggplot2::geom_col() +
+  ggplot2::labs(title = "Distribution of properties by CT band (England, 1993)")
 
 # distribution of English regions properties by band in 1993
 ctsop_1993_rgn <- ctsop_1993 |>
   dplyr::filter(geography == "REGL") |>
   process_ctsop()
 
-ggplot(ctsop_1993_rgn, aes(x = band, y = proportion)) +
-  geom_col(position = "dodge") +
-  facet_wrap("area_name", labeller = ggplot2::label_wrap_gen(20)) +
-  labs(title = "Distribution of properties by Council Tax band, 1993")
+ggplot2::ggplot(ctsop_1993_rgn, ggplot2::aes(x = band, y = proportion)) +
+  ggplot2::geom_col(position = "dodge") +
+  ggplot2::facet_wrap("area_name", labeller = ggplot2::label_wrap_gen(20)) +
+  ggplot2::labs(title = "Distribution of properties by Council Tax band, 1993")
 
 # 2022 analysis - first format to long
 
