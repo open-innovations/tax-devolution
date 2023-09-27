@@ -49,10 +49,11 @@ import_onspd <- function(update = FALSE) {
   return(onspd)
 }
 
-# ppd <- import_ppd()
-# onspd <- import_onspd()
+ppd <- import_ppd()
+onspd <- import_onspd()
 
-# ppd_onspd <- dplyr::inner_join(ppd, onspd, by = c("postcode" = "pcds")) |>
+ppd_onspd <- dplyr::inner_join(ppd, onspd, by = c("postcode" = "pcds"))
+# |>
   # dplyr::select(-postcode)
 # rm(ppd, onspd)
 
@@ -77,6 +78,12 @@ ct_bands_england_1991 <- data.frame(
   max   = c(40000, 52000, 68000, 88000, 120000, 160000, 320000, Inf),
   ratio = c(6/9, 7/9, 8/9,  9/9,  11/9, 13/9, 15/9, 18/9)
 ) # |> dplyr::mutate(cpi_2022 = max * cpi$index_1991[cpi$dates.date == "2022-01-01"])
+
+ct_bands_england_npp <- data.frame(
+  band  = c("X", "Y", "Z"),
+  min   = c(2e6 + 1, 10e6 + 1, 20e6 + 1),
+  max   = c(10e6, 20e6, Inf)
+)
 
 ct_bands_wales_2003 <- data.frame(
   band  = LETTERS[1:9],
@@ -103,9 +110,6 @@ ppd_england_2022 <- ppd_onspd |>
 ppd_england_2022$oslaua |> unique() |> length()
 # 309
 
-# .. = not valid (i.e band I in Wales)
-# - = no properties in this band - should be 0
-
 process_ctsop <- function(x) {
   df <- x |>
     dplyr::select(-all_properties) |>
@@ -127,6 +131,8 @@ process_ctsop <- function(x) {
 
 # Analysis ----------------------------------------------------------------
 
+# .. = not valid (i.e band I in Wales)
+# - = no properties in this band - should be 0
 # ctsop_2022 <- readr::read_csv('data-raw/Council Tax/CTSOP1-0-1993-2022/CTSOP1_0_2022_03_31.csv', na = c("..", "-")) |>
 #   dplyr::mutate(band_i = as.numeric(band_i)) |>
 #   process_ctsop()
@@ -184,7 +190,6 @@ ecdf(ppd_england_2022$price)(c(2e6, 10e6, 20e6)) |>
   setNames(c("X", "Y", "Z"))
 
 # calculate bands for all England LAs based on 2022 prices
-
 new_bands <- list()
 for (la in unique(ctsop_2023_laua$ecode)) {
   la_name <- unique(ctsop_2023_laua$area_name[ctsop_2023_laua$ecode == la])
