@@ -47,21 +47,42 @@ calc_sdlt_payable <- function(price, i = 1) {
   return(tax)
 }
 
-sdlt_payable(250000)
-sdlt_payable(300000)
-sdlt_payable(1e6)
-sdlt_payable(1.5e6)
-sdlt_payable(1.6e6)
-sdlt_payable(1.7e6)
-sdlt_payable(1.8e6)
-sdlt_payable(10e6)
+calc_sdlt_payable(250000)
+calc_sdlt_payable(300000)
+calc_sdlt_payable(1e6)
+calc_sdlt_payable(1.5e6)
+calc_sdlt_payable(1.6e6)
+calc_sdlt_payable(1.7e6)
+calc_sdlt_payable(1.8e6)
+calc_sdlt_payable(10e6)
 
-ppd_2022$sdlt <- sapply(ppd_2022$Price, calc_sdlt_payable)
+ppd_england_2022$sdlt <- sapply(ppd_england_2022$price, calc_sdlt_payable)
 
-ppd_2022 |> dplyr::group_by(oslaua) |> dplyr::summarise(sdlt = sum(sdlt)) |> dplyr::arrange(dplyr::desc(sdlt))
+sdlt_2022 <- ppd_england_2022 |>
+  dplyr::group_by(oslaua) |>
+  dplyr::summarise(sdlt = sum(sdlt))
 
-ppd$sdlt <- sapply(ppd$Price, calc_sdlt_payable)
+ctsop_la_rgn_lookup <- readRDS("~/Projects/Tax-Devolution/app/app.data/ctsop_la_rgn_lookup.rds")
 
-ppd |>
-  dplyr::group_by(substr(`Date of Transfer`, 1, 4)) |>
-  dplyr::summarise(sum(sdlt))
+sdlt_2022_la <- sdlt_2022 |>
+  dplyr::inner_join(ctsop_la_rgn_lookup,
+                    by = c("oslaua" = "geography_code")) |>
+  dplyr::rename(geography_code = oslaua)
+
+sdlt_2022_rgn <- sdlt_2022_la |>
+  dplyr::group_by(region_code, region_name) |>
+  dplyr::summarise(sdlt = sum(sdlt)) |>
+  dplyr::mutate(geography_type = "REGL") |>
+  dplyr::rename(geography_code = region_code,
+                geography_name = region_name)
+
+sdlt_2022_final <- dplyr::bind_rows(sdlt_2022_rgn, sdlt_2022_la)
+
+saveRDS(sdlt_2022_final, "app/app.data/sdlt.rds")
+
+# Time series
+# ppd$sdlt <- sapply(ppd$Price, calc_sdlt_payable)
+#
+# ppd |>
+#   dplyr::group_by(substr(`Date of Transfer`, 1, 4)) |>
+#   dplyr::summarise(sum(sdlt))
