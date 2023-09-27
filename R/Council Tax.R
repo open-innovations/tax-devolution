@@ -82,7 +82,8 @@ ct_bands_england_1991 <- data.frame(
 ct_bands_england_npp <- data.frame(
   band  = c("X", "Y", "Z"),
   min   = c(2e6 + 1, 10e6 + 1, 20e6 + 1),
-  max   = c(10e6, 20e6, Inf)
+  max   = c(10e6, 20e6, Inf),
+  ratio = c(8, 16, 32)
 )
 
 ct_bands_wales_2003 <- data.frame(
