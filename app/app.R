@@ -27,7 +27,8 @@ ui <- navbarPage(
             p("Select values for top of each band (last band should be blank)"),
             uiOutput("bands"),
             uiOutput("reset_bands"),
-            uiOutput("cpi_index_bands")
+            uiOutput("cpi_index_bands"),
+            uiOutput("index_bands_2022")
           ),
           tabPanel(
             title = "Band ratios",
@@ -224,6 +225,7 @@ server <- function(input, output) {
   tt_final <- readRDS("app.data/tt_final.rds")
   nndr_data <- readRDS("app.data/nndr_data.rds")
   ni_data <- readRDS("app.data/ni_data.rds")
+  england_bands_2022_valuation <- readRDS("app.data/england_bands_2022_valuation.rds")
 
   ct_bands_england_1991 <- data.frame(
     band  = LETTERS[1:8],
@@ -356,6 +358,22 @@ server <- function(input, output) {
         numericInput(inputId = paste0("band", ct_bands_england_1991$band[n]),
                      label = paste("Band", ct_bands_england_1991$band[n]),
                      value = round(ct_bands_england_1991$cpi_2022[n]),
+                     step = 10000)
+      })
+    })
+  })
+
+  output$index_bands_2022 <- renderUI({
+    actionButton("index_bands_2022_button",
+                 "Uprate bands to 2022 valuations")
+  })
+
+  observeEvent(input$index_bands_2022_button, {
+    output$bands <- renderUI({
+      lapply(seq_along(1:nrow(ct_bands_england_1991)), function(n) {
+        numericInput(inputId = paste0("band", ct_bands_england_1991$band[n]),
+                     label = paste("Band", ct_bands_england_1991$band[n]),
+                     value = round(england_bands_2022_valuation[n]),
                      step = 10000)
       })
     })

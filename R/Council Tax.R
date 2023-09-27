@@ -163,6 +163,7 @@ ctsop_2023_laua$ecode |> unique() |> length()
 # 309
 
 # england-wide property bands at 2022 prices
+# using same proportion of properties in each band as current system
 quantile(ppd_england_2022$price, probs = ctsop_2023_england$cumprop)
 
 # test difference in methodologies
@@ -242,6 +243,9 @@ ecdf(ppd_england_2022$price)(ct_bands_england_1991$max)
 
 
 england_bands <- quantile(ppd_england_2022$price, ctsop_2023_england$cumprop) |> setNames(LETTERS[1:8])
+england_bands["H"] <- Inf
+
+saveRDS(england_bands, "app/app.data/england_bands_2022_valuation.rds")
 
 new_national_bands_cumsum <- list()
 for (la in unique(ctsop_2023_laua$ecode)) {
