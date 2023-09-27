@@ -49,10 +49,10 @@ import_onspd <- function(update = FALSE) {
   return(onspd)
 }
 
-ppd <- import_ppd()
-onspd <- import_onspd()
+# ppd <- import_ppd()
+# onspd <- import_onspd()
 
-ppd_onspd <- dplyr::inner_join(ppd, onspd, by = c("postcode" = "pcds"))
+# ppd_onspd <- dplyr::inner_join(ppd, onspd, by = c("postcode" = "pcds"))
 # |>
   # dplyr::select(-postcode)
 # rm(ppd, onspd)
