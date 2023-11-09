@@ -96,6 +96,16 @@ ct_bands_england_1991_npp <- data.frame(
             8, 16, 32)
 )
 
+ct_bands_england_2022_npp <- data.frame(
+  band  = c(LETTERS[1:8], LETTERS[24:26]),
+  min   = c(0, 175001, 250001, 361001, 500001, 700001, 1e6 + 1, 2.85e6 + 1,
+            2e6 + 1, 10e6 + 1, 20e6 + 1),
+  max   = c(175000, 250000, 361000, 500000, 700000, 1e6, 2.85e6,
+            2e6, 10e6, 20e6, Inf),
+  ratio = c(6/9, 7/9, 8/9,  9/9,  11/9, 13/9, 15/9, 18/9,
+            8, 16, 32)
+)
+
 ct_bands_wales_2003 <- data.frame(
   band  = LETTERS[1:9],
   min   = c(0, 44001, 65001, 91001, 123001, 162001, 223001, 324001, 424001),
@@ -244,8 +254,15 @@ ecdf(ppd_england_2022$price)(ct_bands_england_1991$max)
 
 england_bands <- quantile(ppd_england_2022$price, ctsop_2023_england$cumprop) |> setNames(LETTERS[1:8])
 england_bands["H"] <- Inf
-
 saveRDS(england_bands, "app/app.data/england_bands_2022_valuation.rds")
+
+
+england_bands_2022_superbands <- c(england_bands, X = 10e6, Y = 20e6, Z = Inf)
+england_bands_2022_superbands["H"] <- 2e6
+saveRDS(england_bands_2022_superbands, "app/app.data/england_bands_2022_superbands.rds")
+
+
+
 
 new_national_bands_cumsum <- list()
 for (la in unique(ctsop_2023_laua$ecode)) {
