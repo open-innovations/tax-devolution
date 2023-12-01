@@ -221,6 +221,8 @@ for (la in unique(ctsop_2023_laua$ecode)) {
 }
 
 new_bands_df <- as.data.frame(do.call(rbind, new_bands))
+new_bands_df$area_name <- rownames(new_bands_df)
+new_bands_df <- dplyr::select(new_bands_df, area_name, dplyr::everything())
 readr::write_csv(new_bands_df, "data/new_2022_bands.csv")
 
 # need to calculate a cumprop value for each LA which takes into account
