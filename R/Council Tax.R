@@ -216,11 +216,12 @@ ecdf(ppd_england_2022$price)(c(2e6, 10e6, 20e6)) |>
 new_bands <- list()
 for (la in unique(ctsop_2023_laua$ecode)) {
   la_name <- unique(ctsop_2023_laua$area_name[ctsop_2023_laua$ecode == la])
-  new_bands[[la_name]] <- quantile(ppd_england_2022$price[ppd_england_2022$oslaua == la], ctsop_2023_laua$cumprop[ctsop_2023_laua$ecode == la]) |>
+  new_bands[[la_name]] <- round(quantile(ppd_england_2022$price[ppd_england_2022$oslaua == la], ctsop_2023_laua$cumprop[ctsop_2023_laua$ecode == la])) |>
     setNames(LETTERS[1:8])
 }
 
 new_bands_df <- as.data.frame(do.call(rbind, new_bands))
+readr::write_csv(new_bands_df, "data/new_2022_bands.csv")
 
 # need to calculate a cumprop value for each LA which takes into account
 # a revised band H and the new NPP bands X, Y, Z
